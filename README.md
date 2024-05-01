@@ -2,7 +2,7 @@
 Experience the thrill of Sherlock Holmes! Your AI partner guides you with data analysis and web searches. Solve the unsolvable!
 # AI Detective Sherlock Holmes: A Case Investigation and RAG Chatbot Application
 
-This repository houses an intriguing Python application that leverages the power of Google's advanced AI models, including Gemini and Gemini Pro Vision, to create a unique experience centered around the legendary detective, Sherlock Holmes.
+This repository houses an intriguing Python application that leverages the power of Google's advanced AI models gemini 1.5 pro latest, including Gemini and Gemini 1.0 Pro Vision, to create a unique experience centered around the legendary detective, Sherlock Holmes.
 
 ## Key Features
 
@@ -31,7 +31,8 @@ This repository houses an intriguing Python application that leverages the power
 1. **Clone the repository:** `git clone https://github.com/your-username/sherlock2.git`
 2. **Install dependencies:** `pip install -r requirements.txt`
 3. **Set environment variables:**
-    * Create a `.env` file and define `GEMINI_API_KEY_PROJECTID` with your Google AI API key and project ID.
+    * Create a `.env` file and define `GEMINI_API_KEY_PROJECTID` with your Google gemini 1.5 pro latest API key
+      `GOOGLE_CUSTOM_SEARCH_API_KEY` with your search api key to search the web and also with `GOOGLE_CUSTOM_SEARCH_ENGINE_ID` to perform the web searches.
 4. **Run the application:** `streamlit run sherlock2.py`
 
 ## Disclaimer
