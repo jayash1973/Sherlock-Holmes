@@ -111,14 +111,14 @@ def process_images(uploaded_images):
     return image_insights
 
 def search_internet(case_text):
-    """Generates search queries using Gemini 1.5 Pro and performs internet searches for case-related information."""
+    """Generates search queries using Gemini 1.5 Pro and performs internet searches for case-related information, limited to 10 searches."""
     prompt = """
-    You are an expert detective assistant. Analyze the following case information and generate a list of search queries
-    to find relevant information on the internet:
+    You are an expert detective assistant. Analyze the following case information and generate a list of 
+    the 10 most important search queries to find relevant information on the internet make sure that the queries you generates show results on the internet and are human like queirs generated: 
     """ + str(case_text)
 
     response = model.generate_content([prompt])
-    search_queries = response.text.strip().split("\n")
+    search_queries = response.text.strip().split("\n")[:10]
 
     # Set up Google Custom Search API client
     load_dotenv()  # Make sure this is called before accessing environment variables
