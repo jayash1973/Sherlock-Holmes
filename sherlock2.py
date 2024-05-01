@@ -5,6 +5,9 @@ from bs4 import BeautifulSoup
 import wikipedia
 from wikipedia.exceptions import DisambiguationError, PageError
 import os
+import numpy as np
+import pandas as pd
+from pprint import pprint
 import re
 import requests
 from googleapiclient.discovery import build
@@ -20,8 +23,8 @@ load_dotenv()
 genai.configure(api_key=os.getenv("GEMINI_API_KEY_PROJECTID"))
 
 # Load pre-trained Gemini model
-model = genai.GenerativeModel('models/gemini-1.0-pro')
-vision_model = genai.GenerativeModel('models/gemini-pro-vision')
+model = genai.GenerativeModel('models/gemini-1.5-pro-latest')
+vision_model = genai.GenerativeModel('models/gemini-1.0-pro-vision-latest')
 
 # Define Sherlock Holmes's persona and guidelines
 sherlock_persona = """
@@ -50,21 +53,6 @@ Let your every utterance and action be a masterpiece of deductive prowess, a sym
 # Generate embeddings using the Gemini Embedding API
 embed_model = 'models/embedding-001'
 
-# Function for embedding generation (using models/embedding-001)
-def generate_embeddings_from_documents(extracted_text):
-    """Generates embeddings for a list of extracted text documents using the 'models/embedding-001' model
-    and the appropriate task type."""
-    embeddings = []
-    for text in extracted_text:
-        try:
-            # Determine the appropriate task type (e.g., "RETRIEVAL_DOCUMENT" for search/similarity)
-            task_type = "RETRIEVAL_DOCUMENT"
-            response = genai.embed_content(model=embed_model, content=text, task_type=task_type)
-            embeddings.append(response["embedding"])
-        except Exception as e:
-            st.error(f"Error generating embeddings: {e}")
-    return embeddings
-
 def extract_keywords_simple(extracted_text):
     """Extracts keywords and important information from the given text using Gemini 1.5 Pro."""
     prompt = """
@@ -77,15 +65,16 @@ def extract_keywords_simple(extracted_text):
     return keywords
 
 # Function to extract text from various file types
-def extract_text_from_files(uploaded_files):
-    """Extracts text content from a list of uploaded files, handling various file types."""
-    extracted_text = []
+def extract_text_and_embeddings(uploaded_files):
+    """Extracts text content and generates embeddings for a list of uploaded files."""
+    extracted_data = []
     for uploaded_file in uploaded_files:
         file_type = uploaded_file.type
         if file_type == "text/plain":
             # Plain Text File
             raw_text = str(uploaded_file.read(), "utf-8")
-            extracted_text.append(raw_text.strip())
+            embedding = genai.embed_content(model=embed_model, content=raw_text.strip(), task_type="RETRIEVAL_DOCUMENT")["embedding"]
+            extracted_data.append({"text": raw_text.strip(), "embedding": embedding})
         elif file_type == "application/pdf":
             # PDF Document
             pdf_reader = PyPDF2.PdfReader(uploaded_file)
@@ -93,19 +82,21 @@ def extract_text_from_files(uploaded_files):
             for page_num in range(len(pdf_reader.pages)):
                 page = pdf_reader.pages[page_num]
                 text += page.extract_text()
-            extracted_text.append(text)
+            embedding = genai.embed_content(model=embed_model, content=text, task_type="RETRIEVAL_DOCUMENT")["embedding"]
+            extracted_data.append({"text": text, "embedding": embedding})
         else:
             # Other Document Types (Using Textract)
             try:
                 text = textract.process(uploaded_file).decode("utf-8")
-                extracted_text.append(text)
+                embedding = genai.embed_content(model=embed_model, content=text, task_type="RETRIEVAL_DOCUMENT")["embedding"]
+                extracted_data.append({"text": text, "embedding": embedding})
             except Exception as e:
                 st.error(f"Error extracting text from file: {e}")
-    return extracted_text
+    return pd.DataFrame(extracted_data)
 
-# Function to process images using Gemini Pro Vision
+# Function to process images using Gemini 1.0 Pro Vision
 def process_images(uploaded_images):
-    """Processes a list of uploaded images using Gemini Pro Vision to extract relevant information."""
+    """Processes a list of uploaded images using Gemini 1.0 Pro Vision to extract relevant information."""
     image_insights = []
     for uploaded_image in uploaded_images:
         try:
@@ -130,9 +121,10 @@ def search_internet(case_text):
     search_queries = response.text.strip().split("\n")
 
     # Set up Google Custom Search API client
-    api_key = "AIzaSyD-1OMuZ0CxGAek0PaXrzHOmcDWFvZQtm8"
-    cse_id = "73499643bc7bf47ed"
-    service = build("customsearch", "v1", developerKey=api_key)
+    load_dotenv()  # Make sure this is called before accessing environment variables
+    google_search_api_key = os.getenv("GOOGLE_CUSTOM_SEARCH_API_KEY")
+    cse_id = os.getenv("GOOGLE_CUSTOM_SEARCH_ENGINE_ID")
+    service = build("customsearch", "v1", developerKey=google_search_api_key)
 
     internet_search_results = []
     for query in search_queries:
@@ -171,7 +163,7 @@ def clear_chat():
     st.session_state.chat_history = []
 
 def investigate():
-    """Handles the case investigation process with improved UI and functionality."""
+    """Handles the case investigation process with Pandas for embeddings."""
     st.subheader("Case Investigation")
 
     # File upload with clear labels and progress bars
@@ -189,24 +181,20 @@ def investigate():
 
         # Extract text and process images with progress indication
         with st.spinner("Extracting text and analyzing images..."):
-            case_text = extract_text_from_files(documents)
-            keywords = extract_keywords_simple("\n\n".join(case_text))
-            case_embeddings = generate_embeddings_from_documents(case_text)
+            case_data = extract_text_and_embeddings(documents) 
+            keywords = extract_keywords_simple("\n\n".join(case_data["text"]))
             image_insights = process_images(images)
 
         combined_information = {
-            "case_text": case_text,
+            "case_data": case_data,
             "image_insights": image_insights,
             "keywords": keywords
         }
 
-        # Convert case_embeddings to a string
-        case_embeddings_str = " ".join(str(embedding) for embedding in case_embeddings)
-
         prompt = """
         You are Sherlock Holmes, the renowned detective. Analyze the following case information and provide insights or 
         suggestions for further investigation:
-        """ + str(combined_information) + "\nCase Embeddings: " + case_embeddings_str
+        """ + str(combined_information) 
 
         response = model.generate_content([sherlock_persona, sherlock_guidelines, prompt])
 
@@ -214,12 +202,12 @@ def investigate():
         with st.expander("Sherlock's Analysis and Suggestions:"):
             st.write(response.text)
 
-        web_search_results = []  # Add this line
+        web_search_results = [] 
 
         search_options = st.multiselect("Search for additional clues:", ["Internet"], default=["Internet"]) 
         if st.button("Search"):
             with st.spinner("Searching for clues..."):
-                web_search_results = search_internet("\n\n".join(case_text))
+                web_search_results = search_internet("\n\n".join(case_data["text"]))
                 st.subheader("Internet Search Results:")
                 for result in web_search_results:
                     st.write(f"**Title:** {result['title']}")
@@ -235,7 +223,7 @@ def investigate():
                 including deductions, potential suspects, and conclusions. 
                 """ 
                 final_report = model.generate_content([sherlock_persona, sherlock_guidelines, report_prompt, 
-                                                       case_embeddings_str, str(web_search_results)])  # Removed wikipedia_info
+                                                       str(web_search_results)]) 
                 st.header("Case Report")
                 st.write(final_report.text)
 
