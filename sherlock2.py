@@ -61,7 +61,7 @@ def extract_keywords_simple(extracted_text):
     """ + extracted_text
 
     response = model.generate_content([prompt])
-    keywords = response.text.strip().split("\n")  # Assuming each keyword is on a separate line
+    keywords = response.text.strip().split("\n")
     return keywords
 
 # Function to extract text from various file types
@@ -121,7 +121,7 @@ def search_internet(case_text):
     search_queries = response.text.strip().split("\n")[:10]
 
     # Set up Google Custom Search API client
-    load_dotenv()  # Make sure this is called before accessing environment variables
+    load_dotenv()
     google_search_api_key = os.getenv("GOOGLE_CUSTOM_SEARCH_API_KEY")
     cse_id = os.getenv("GOOGLE_CUSTOM_SEARCH_ENGINE_ID")
     service = build("customsearch", "v1", developerKey=google_search_api_key)
@@ -256,7 +256,6 @@ def chat_with_sherlock():
         with output_container:
             display_chat_history()
 def main():
-    # --- Custom CSS for Styling ---
     custom_css = """
     <style>
         body {
